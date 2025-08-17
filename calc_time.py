@@ -1,9 +1,7 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
 import rasterio
 import ephem
-from tqdm import tqdm
 import pytz
 from timezonefinder import TimezoneFinder
 from datetime import datetime, timedelta
