@@ -6,3 +6,4 @@ datetime
 scipy
 pandas
 folium
+streamlit_folium
