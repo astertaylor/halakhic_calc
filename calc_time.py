@@ -9,6 +9,20 @@ from scipy.interpolate import RegularGridInterpolator
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
+import requests
+
+def get_elevation(lat, lon):
+    url = f"https://api.opentopodata.org/v1/mapzen?locations={lat},{lon}&interpolation=cubic"
+
+    response = requests.get(url)
+    data = response.json()
+
+    if data['status'] == 'OK':
+        elevation = data['results'][0]['elevation']
+        return elevation
+    else:
+        print(f"Error: {data['status']}")
+        return 0.0
 
 def get_timezone_from_coordinates(lat, lon):
     """
@@ -344,7 +358,7 @@ def sun_at_position(obs, h):
 
     return obs.next_setting(sun)
 
-def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=0.0):
+def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=None):
     """
     Calculate all relevant times for a given observer and set of stars.
 
@@ -364,6 +378,9 @@ def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=0.0):
     tz = get_timezone_from_coordinates(lat, lon)
     dt = pytz.timezone(tz).localize(time)  # Localize the datetime to the specified timezone
     date = ephem.Date(dt.astimezone(pytz.utc))  # Convert to UTC for ephem calculations
+
+    if elev is None:
+        elev = max(0.0, get_elevation(lat, lon))
 
     obs = ephem.Observer()
     obs.lat = str(lat)
@@ -604,22 +621,24 @@ def main():
         lon = st.session_state.map_lon
         location_name = f"{abs(lat):.4f}° {'N' if lat >= 0 else 'S'} {abs(lon):.4f}° {'E' if lon >= 0 else 'W'}"
         
+        # Get elevation for current coordinates
+        if 'map_elevation' not in st.session_state or st.session_state.get('last_coords') != (lat, lon):
+            st.session_state.map_elevation = max(0.0, get_elevation(lat, lon))
+            st.session_state.last_coords = (lat, lon)
+        
         # Show selected coordinates
         # st.info(f"Selected coordinates: {lat:.4f}, {lon:.4f}")
         
     else:
         # Predefined cities
-        cities = {
-            "Jerusalem": (31.7769, 35.2345),
-            "New York": (40.7128, -74.0060),
-            "London": (51.5074, -0.1278),
-            "Ann Arbor": (42.2808, -83.7430),
-            "Los Angeles": (34.0549, -118.2426),
-            "Buenos Aires": (-34.6037, -58.3816),
-            "Reykjavik": (64.1470, -21.9408),
-            "Paris": (48.8575, 2.3514),
-            "Alexandria": (31.2001, 29.9187)
-        }
+        citiesdat = pd.read_csv("data/cities_list.csv")
+        # Create a mapping from city names to coordinates
+        cities = {}
+        for _, row in citiesdat.iterrows():
+            city_name = row['city_ascii']
+            lat = row['lat']
+            lng = row['lng']
+            cities[city_name] = (lat, lng)
         
         col1, col2 = st.columns(2)
         with col1:
@@ -628,6 +647,11 @@ def main():
             location_name = selected_city
         with col2:
             st.write(f"**Selected City:** {selected_city}")
+        
+        # Get elevation for selected city
+        if 'city_elevation' not in st.session_state or st.session_state.get('last_city') != selected_city:
+            st.session_state.city_elevation = max(0.0, get_elevation(lat, lon))
+            st.session_state.last_city = selected_city
         
         # Show map for selected city
         m_city = folium.Map(
@@ -676,7 +700,19 @@ def main():
     # Elevation and Date inputs moved below the map
     col3, col4 = st.columns(2)
     with col3:
-        elev = st.number_input("Elevation (meters)", min_value=0.0, value=0.0, step=1.0)
+        # Use appropriate elevation default based on location method
+        if location_method == "Map Selection":
+            default_elevation = st.session_state.get('map_elevation', 0.0)
+        else:
+            default_elevation = st.session_state.get('city_elevation', 0.0)
+        
+        elev = st.number_input(
+            "Elevation (meters)", 
+            min_value=0.0, 
+            value=default_elevation, 
+            step=1.0,
+            help="Elevation is automatically detected but can be manually adjusted"
+        )
     with col4:
         selected_date = st.date_input("Select date", value=datetime.now().date())
     
@@ -726,10 +762,7 @@ def main():
                         st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
                     else:
                         st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
-                
-                # Show difference
-                # st.info(f"**Light pollution delay:** {time_diff.total_seconds()/60:.1f} minutes")
-                
+                                
                 # Additional information
                 st.subheader("About These Times")
                 st.write("""
