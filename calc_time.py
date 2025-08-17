@@ -148,7 +148,6 @@ def read_star_catalog(filename="data/catalog", mag_limit_l=-5.0, mag_limit_u=4.0
         print(f"Catalog file {filename} not found")
         return [], [], []
 
-    print(f"Successfully read {len(ra_list)} stars brighter than magnitude {mag_limit_u} and dimmer than {mag_limit_l}")
     starobjs = [ephem.FixedBody() for i in range(len(ra_list))]
     for i, (ra, dec, mag) in enumerate(zip(ra_list, dec_list, mag_list)):
         starobjs[i]._ra = np.radians(ra)  # Convert degrees to radians
@@ -307,14 +306,14 @@ def halakhic_time(obs, stars, Blp=0.0):
 
     obs.date = end_time
     if not nightfall(stars, obs, Blp):
-        print("WARNING: nightfall has not happened at the end!")
+        print("WARNING: Nightfall has not happened at the end!")
         return obs.date
     else:
         # perform a binary search
         time = start_time
         next_time = (start_time + end_time) / 2
 
-        while np.abs(time - next_time) > ephem.second: # search down to a second
+        while np.abs(time - next_time) > ephem.second/10: # search down to a second
             time = next_time
             obs.date = time
             if nightfall(stars, obs, Blp):
@@ -382,10 +381,12 @@ def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=0.0):
     times['sunset'] = utc_to_local(sunset, tz)  # Sunset time
     # Calculate approximate times for Rabbeinu Tam, Con, and Orth
     times['Tam_approx'] = utc_to_local(ephem.Date(sunset + ephem.minute * 72), tz)  # Rabbeinu Tam's approximation (72 minutes after sunset)
-    obs.date = date
-    times['Con_approx'] = utc_to_local(sun_at_position(obs, -7.5*np.pi/180), tz)  # Approximate time when the Sun is at -7.5 degrees altitude
+    
     obs.date = date
     times['ht_lp'] = utc_to_local(halakhic_time(obs, stars, Blp=Blp), tz)
+    
+    obs.date = date
+    times['Con_approx'] = utc_to_local(sun_at_position(obs, -7.5*np.pi/180), tz)  # Approximate time when the Sun is at -7.5 degrees altitude
 
     return times
 
@@ -411,10 +412,91 @@ def main():
     .header-link a {
         color: #1f77b4;
         text-decoration: none;
-        font-size: 1.5rem;
+        font-size: 1.4rem;
     }
     .header-link a:hover {
         text-decoration: underline;
+    }
+    /* Increase font sizes throughout the app */
+    .stMarkdown p, .stMarkdown li, .stMarkdown div {
+        font-size: 1.1rem !important;
+    }
+    .stSelectbox label, .stNumberInput label, .stDateInput label, .stRadio label {
+        font-size: 1.1rem !important;
+    }
+    /* Specifically target number input labels for coordinates and elevation */
+    .stNumberInput > label {
+        font-size: 1.1rem !important;
+    }
+    .stNumberInput label > div {
+        font-size: 1.1rem !important;
+    }
+    .stNumberInput div[data-testid="stNumberInput"] label {
+        font-size: 1.1rem !important;
+    }
+    /* Additional number input label targeting */
+    div[data-testid="stNumberInput"] label {
+        font-size: 1.1rem !important;
+    }
+    div[data-testid="stNumberInput"] > label {
+        font-size: 1.1rem !important;
+    }
+    .stNumberInput label {
+        font-size: 1.1rem !important;
+    }
+    .stRadio > div > label {
+        font-size: 1.1rem !important;
+    }
+    .stRadio div[role="radiogroup"] label {
+        font-size: 1.1rem !important;
+    }
+    .stRadio > div > div > label {
+        font-size: 1.1rem !important;
+    }
+    .stRadio p {
+        font-size: 1.1rem !important;
+    }
+    /* Target the main radio button label text */
+    .stRadio > label {
+        font-size: 1.1rem !important;
+    }
+    .stSelectbox div, .stNumberInput div, .stDateInput div {
+        font-size: 1.1rem !important;
+    }
+    /* Force number input values and inputs to be larger */
+    .stNumberInput input {
+        font-size: 1.1rem !important;
+    }
+    div[data-testid="stNumberInput"] input {
+        font-size: 1.1rem !important;
+    }
+    .stNumberInput input[type="number"] {
+        font-size: 1.1rem !important;
+    }
+    /* Target number input container content */
+    .stNumberInput > div > div > input {
+        font-size: 1.1rem !important;
+    }
+    .stNumberInput > label {
+        font-size: 1.1rem !important;
+    }
+    /* Force number input labels with maximum specificity */
+    div[data-testid="column"] div[data-testid="stNumberInput"] label,
+    div[data-testid="column"] .stNumberInput label,
+    .main div[data-testid="stNumberInput"] label,
+    .stApp div[data-testid="stNumberInput"] label {
+        font-size: 1.1rem !important;
+        font-weight: 400 !important;
+    }
+    .stButton button {
+        font-size: 1.2rem !important;
+        padding: 0.5rem 1rem !important;
+    }
+    h2, h3 {
+        font-size: 1.3rem !important;
+    }
+    .stInfo, .stError, .stWarning {
+        font-size: 1.1rem !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -626,21 +708,24 @@ def main():
                 st.write(f"**Timezone:** {times['timezone']}")
                 st.write(f"**Light Pollution:** {light_poll*1e3:.2f} mcd/m²")
                 
+                st.subheader("Times")
                 # Create columns for better layout
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.subheader("Sunset Times")
                     st.write(f"**Sunset:** {times['sunset'].strftime('%H:%M:%S')}")
                     st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**R. Tukachinsky (-7.5°):** {times['Con_approx'].strftime('%H:%M:%S')}")
                 
                 with col2:
-                    st.subheader("Halakhic Nightfall")
-                    st.write(f"**Without Light Pollution:** {times['ht'].strftime('%H:%M:%S')}")
-                    st.write(f"**With Light Pollution:** {times['ht_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Three stars, no light pollution:** {times['ht'].strftime('%H:%M:%S')}")
+                    st.write(f"**Three stars, with light pollution:** {times['ht_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['ht_lp'] - times['ht']
-                    st.write(f"**Light pollution delay:** {time_diff.total_seconds()/60:.1f} minutes")
+                    delay_seconds = time_diff.total_seconds()
+                    if delay_seconds < 60:
+                        st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
+                    else:
+                        st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
                 
                 # Show difference
                 # st.info(f"**Light pollution delay:** {time_diff.total_seconds()/60:.1f} minutes")
@@ -648,11 +733,11 @@ def main():
                 # Additional information
                 st.subheader("About These Times")
                 st.write("""
-                - **Sunset**: When the sun's disk disappears below the horizon
-                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset
-                - **R. Tukachinsky (-7.5°)**: When the sun is 7.5° below the horizon
-                - **Halakhic Nightfall**: When 3 medium stars become visible within 15° of each other
-                - **Light pollution delay**: How much light pollution delays the appearance of stars
+                - **Sunset**: When the sun's disk disappears below the horizon.
+                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset. This is an approximation of nightfall. 
+                - **R. Tukachinsky (-7.5°)**: When the sun is 7.5° below the horizon. This approximates when three medium stars will become visible.
+                - **Halakhic nightfall**: When 3 medium stars become visible within 15° of each other. Calculated with and without light pollution.
+                - **Light pollution delay**: How much light pollution delays the appearance of stars.
                 """)
                 
             except Exception as e:
