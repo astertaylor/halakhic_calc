@@ -7,3 +7,4 @@ scipy
 pandas
 folium
 streamlit_folium
+requests

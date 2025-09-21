@@ -68,12 +68,12 @@ sky_brightness = lambda x: 10 ** interim(x) # note: takes inputs in DEGREES. Z i
 
 def bright_limit(B): 
     """
-    Calculate the limiting magnitude based on background brightness using the formula of Crumey (2014).
+    Calculate the limiting brightness based on background brightness using the formula of Crumey (2014).
     
     Args:
         bcgd: Background brightness in cd/m^2
     Returns:
-        float: Limiting magnitude
+        float: Limiting brightness in lux
     """
 
     a1 = 6.112e-8; a2=-1.598e-7; a3=1.167e-7; a4=4.988e-4; a5=-3.014e-4
@@ -289,6 +289,24 @@ def nightfall(stars, obs, Blp=0.0):
     # add the night sky brightness
     Bvals += 4.329e-4
 
+    # calculate the moon glare
+    moon = ephem.Moon()
+    moon.compute(obs)
+    
+    phase = moon.phase / 100.0 # fraction of the moon illuminated
+    alpha = np.arccos(2*phase - 1)*180/np.pi # phase angle in degrees
+    mmoon = 0.026*alpha + 4e-9*alpha**4 - 12.73 # apparent magnitude of the moon
+    Imoonstar = 10**(-0.4*(mmoon + 13.99)) # in lux
+    Imoon = Imoonstar * 10**(-0.4*kV(obs.elev) * airmass(np.pi/2 - moon.alt, obs.elev)) # in lux
+    # offset angles between the moon and each star
+    dists = np.array([ephem.separation(moon, star)*180/np.pi for star in stars])[above_horizon] # in degrees
+    Bvals += 3.183e-6*4.63e7*Imoon/10.76 * dists**-2 # in cd/m^2, add in the moon glare in the eye
+
+    Bvals += 3.183e-6*6.25e7*Imoonstar/10.76*(10**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev)) - 10**(-0.8*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * np.where(dists <= 5, dists**-2, 0) # in cd/m^2, add in the moon glare in the atmosphere
+
+    ffmn = 10.0**5.36 * (1.06 + np.cos(np.radians(dists))**2) + 10.0**(6.15 - dists/40) + 6.2e7*(dists**-2) # moon scattering function
+    Bvals += 3.183e-6*ffmn * (1-10.0**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * Imoon/10.76 # in cd/m^2, add in the moon glow scattered in the atmosphere
+
     Ivals = bright_limit(Bvals) # calculate the minimum brightness
     Ivals *= 10**(0.4*kV(obs.elev) * airmass(np.pi/2-alts, obs.elev)) # correct for attenuation
     lim_mags = I_to_mag(Ivals) - 1.0
@@ -316,18 +334,29 @@ def halakhic_time(obs, stars, Blp=0.0):
     # Start with the observer's local sunset time
     start_time = obs.next_setting(ephem.Sun())
 
-    end_time = start_time + ephem.minute*100
+    end_time = start_time + ephem.minute*250
+
+    while True:
+        obs.date = start_time + ephem.minute*10 # increment by 10 minutes
+        if nightfall(stars, obs, Blp): # if nightfall has occurred, set the end time and break
+            end_time = obs.date
+            break
+        else:
+            start_time += ephem.minute*10 # otherwise, increment the start time
+        if start_time > end_time:
+            print("WARNING: nightfall has not happened within 250 minutes after sunset!")
+            return obs.date
 
     obs.date = end_time
     if not nightfall(stars, obs, Blp):
-        print("WARNING: Nightfall has not happened at the end!")
+        print("WARNING: nightfall has not happened at the end!")
         return obs.date
     else:
         # perform a binary search
         time = start_time
         next_time = (start_time + end_time) / 2
 
-        while np.abs(time - next_time) > ephem.second/10: # search down to a second
+        while np.abs(time - next_time) > ephem.second: # search down to a second
             time = next_time
             obs.date = time
             if nightfall(stars, obs, Blp):
@@ -336,7 +365,7 @@ def halakhic_time(obs, stars, Blp=0.0):
                 start_time = time
             
             next_time = (start_time + end_time) / 2
-        
+
         return obs.date
     
 def sun_at_position(obs, h):
@@ -733,7 +762,7 @@ def main():
                     return
                 
                 # Get light pollution data
-                light_poll = light_pollution(lat, lon)
+                light_poll = np.pi*light_pollution(lat, lon)
                 
                 # Calculate times
                 times = calc_all_times(lat, lon, calc_date, stars, Blp=light_poll, elev=elev)
