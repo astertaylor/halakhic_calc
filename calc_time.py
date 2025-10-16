@@ -239,7 +239,7 @@ def find_near_set(stars, d):
     
     return False
     
-def nightfall(stars, obs, Blp=0.0):
+def nightfall(stars, obs, Blp=0.0, dist=10.0):
     """
     Determines whether halakhic nightfall has occured. 
 
@@ -287,7 +287,7 @@ def nightfall(stars, obs, Blp=0.0):
     # add the light pollution value to the brightness values
     Bvals += Blp
     # add the night sky brightness
-    Bvals += 4.329e-4
+    Bvals += 1.7e-4
 
     # calculate the moon glare
     moon = ephem.Moon()
@@ -313,13 +313,16 @@ def nightfall(stars, obs, Blp=0.0):
 
     visible_stars = np.where(mags <= lim_mags)[0] # find the stars that are visible
     if len(visible_stars) >= 3:
-        # check if there are at least 3 stars within 10 degrees of each other
-        return find_near_set(np.array(stars)[above_horizon][visible_stars], 15)
+        if dist is None:
+            return True # if there are at least 3 visible stars, nightfall has occurred
+        else:
+            # check if there are at least 3 stars within the correct distance of each other
+            return find_near_set(np.array(stars)[above_horizon][visible_stars], dist)
 
     # otherwise, nightfall has not occurred
     return False
 
-def halakhic_time(obs, stars, Blp=0.0):
+def halakhic_time(obs, stars, Blp=0.0, dist=10.0):
     """
     Calculate the halakhic nightfall time for a given observer using a binary search through 100 minutes after sunset. 
     
@@ -338,7 +341,7 @@ def halakhic_time(obs, stars, Blp=0.0):
 
     while True:
         obs.date = start_time + ephem.minute*10 # increment by 10 minutes
-        if nightfall(stars, obs, Blp): # if nightfall has occurred, set the end time and break
+        if nightfall(stars, obs, Blp, dist=dist): # if nightfall has occurred, set the end time and break
             end_time = obs.date
             break
         else:
@@ -359,7 +362,7 @@ def halakhic_time(obs, stars, Blp=0.0):
         while np.abs(time - next_time) > ephem.second: # search down to a second
             time = next_time
             obs.date = time
-            if nightfall(stars, obs, Blp):
+            if nightfall(stars, obs, Blp, dist=dist):
                 end_time = time
             else:
                 start_time = time
@@ -387,7 +390,7 @@ def sun_at_position(obs, h):
 
     return obs.next_setting(sun)
 
-def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=None):
+def calc_all_times(lat, lon, time, medstars, smallstars, Blp=0.0, elev=None):
     """
     Calculate all relevant times for a given observer and set of stars.
 
@@ -419,9 +422,11 @@ def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=None):
 
     times = {}
     times['timezone'] = tz  # Store timezone name
-    times['ht'] = utc_to_local(halakhic_time(obs, stars, Blp=0.0), tz)  # Halakhic time in local timezone, subtracted from the original time
-    # times['ht_plus'] = utc_to_local(halakhic_time(obs, stars, error="plus", bckgd=False), tz) - dt # Halakhic time in local timezone
-    # times['ht_minus'] = utc_to_local(halakhic_time(obs, stars, error="minus", bckgd=False), tz) - dt # Halakhic time in local timezone
+    times['TH'] = utc_to_local(halakhic_time(obs, medstars, Blp=0.0, dist=None), tz)  # Halakhic time in local timezone, subtracted from the original time
+
+    obs.date = date
+    times['MS'] = utc_to_local(halakhic_time(obs, smallstars, Blp=0.0, dist=10.0), tz)  # Halakhic time in local timezone, subtracted from the original time
+
     obs.date = date
     sunset = obs.next_setting(ephem.Sun())  # Sunset time in UTC
     times['sunset'] = utc_to_local(sunset, tz)  # Sunset time
@@ -429,10 +434,16 @@ def calc_all_times(lat, lon, time, stars, Blp=0.0, elev=None):
     times['Tam_approx'] = utc_to_local(ephem.Date(sunset + ephem.minute * 72), tz)  # Rabbeinu Tam's approximation (72 minutes after sunset)
     
     obs.date = date
-    times['ht_lp'] = utc_to_local(halakhic_time(obs, stars, Blp=Blp), tz)
-    
+    times['TH_lp'] = utc_to_local(halakhic_time(obs, medstars, Blp=Blp, dist=None), tz)
+
     obs.date = date
-    times['Con_approx'] = utc_to_local(sun_at_position(obs, -7.5*np.pi/180), tz)  # Approximate time when the Sun is at -7.5 degrees altitude
+    times['MS_lp'] = utc_to_local(halakhic_time(obs, smallstars, Blp=Blp, dist=10.0), tz)
+
+    obs.date = date
+    times['TH_approx'] = utc_to_local(sun_at_position(obs, -6.45*np.pi/180), tz)  # Approximate time when the Sun is at -6.45 degrees altitude
+
+    obs.date = date
+    times['MS_approx'] = utc_to_local(sun_at_position(obs, -8.5*np.pi/180), tz)  # Approximate time when the Sun is at -8.5 degrees altitude
 
     return times
 
@@ -755,9 +766,10 @@ def main():
         with st.spinner("Loading star catalog and calculating times..."):
             try:
                 # Load star catalog
-                stars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=4.0)
+                medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
+                smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
                 
-                if not stars:
+                if not medstars or not smallstars:
                     st.error("Could not load star catalog. Please check if the catalog file exists.")
                     return
                 
@@ -765,7 +777,7 @@ def main():
                 light_poll = np.pi*light_pollution(lat, lon)
                 
                 # Calculate times
-                times = calc_all_times(lat, lon, calc_date, stars, Blp=light_poll, elev=elev)
+                times = calc_all_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
                 
                 # Display results
                 st.header(f"Halakhic Times for {location_name}")
@@ -779,13 +791,22 @@ def main():
                 
                 with col1:
                     st.write(f"**Sunset:** {times['sunset'].strftime('%H:%M:%S')}")
-                    st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
-                    st.write(f"**R. Tukachinsky (-7.5°):** {times['Con_approx'].strftime('%H:%M:%S')}")
-                
+                    st.write(f"**6.45° (T'H approximation):** {times['TH_approx'].strftime('%H:%M:%S')}")
+                    st.write(f"**Tzeit HaKochavim:** {times['TH'].strftime('%H:%M:%S')}")
+                    st.write(f"**Tzeit HaKochavim, with light pollution:** {times['TH_lp'].strftime('%H:%M:%S')}")
+                    time_diff = times['TH_lp'] - times['TH']
+                    delay_seconds = time_diff.total_seconds()
+                    if delay_seconds < 60:
+                        st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
+                    else:
+                        st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
+
                 with col2:
-                    st.write(f"**Three stars, no light pollution:** {times['ht'].strftime('%H:%M:%S')}")
-                    st.write(f"**Three stars, with light pollution:** {times['ht_lp'].strftime('%H:%M:%S')}")
-                    time_diff = times['ht_lp'] - times['ht']
+                    st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
+                    st.write(f"**8.5° (M'S approximation):** {times['MS_approx'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motzei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motzei Shabbat, with light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
+                    time_diff = times['MS_lp'] - times['MS']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
                         st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
