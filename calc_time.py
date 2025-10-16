@@ -793,7 +793,7 @@ def main():
                     st.write(f"**Sunset:** {times['sunset'].strftime('%H:%M:%S')}")
                     st.write(f"**6.45° (T'H approximation):** {times['TH_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**Tzeit HaKochavim:** {times['TH'].strftime('%H:%M:%S')}")
-                    st.write(f"**Tzeit HaKochavim, with light pollution:** {times['TH_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Tzeit HaKochavim w/ light pollution:** {times['TH_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['TH_lp'] - times['TH']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
@@ -805,7 +805,7 @@ def main():
                     st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**8.5° (M'S approximation):** {times['MS_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**Motzei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
-                    st.write(f"**Motzei Shabbat, with light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motzei Shabbat w/ light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['MS_lp'] - times['MS']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
@@ -816,10 +816,12 @@ def main():
                 # Additional information
                 st.subheader("About These Times")
                 st.write("""
-                - **Sunset**: When the sun's disk disappears below the horizon.
-                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset. This is an approximation of nightfall. 
-                - **R. Tukachinsky (-7.5°)**: When the sun is 7.5° below the horizon. This approximates when three medium stars will become visible.
-                - **Halakhic nightfall**: When 3 medium stars become visible within 15° of each other. Calculated with and without light pollution.
+                - **Sunset**: When the sun's disk disappears below the horizon. This value uses the US Naval Observatory's definition, which includes atmospheric refraction and the sun's radius.
+                - **6.45° (T'H approximation)**: An approximation of Tzeit HaKochavim, based on the sun being 6.45° below the horizon.
+                - **Tzeit HaKochavim**: The time when three medium stars become visible. 
+                - **8.5° (M'S approximation)**: An approximation of Motzei Shabbat, based on the sun being 8.5° below the horizon.
+                - **Motzei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
+                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset. This is an approximation of nightfall.
                 - **Light pollution delay**: How much light pollution delays the appearance of stars.
                 """)
                 
