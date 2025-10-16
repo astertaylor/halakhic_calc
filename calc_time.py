@@ -798,8 +798,10 @@ def main():
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
                         st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
-                    else:
+                    elif delay_seconds < 3600:
                         st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
+                    else:
+                        st.write(f"**Light pollution delay:** {delay_seconds/3600:.1f} hours")
 
                 with col2:
                     st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
@@ -810,8 +812,10 @@ def main():
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
                         st.write(f"**Light pollution delay:** {delay_seconds:.1f} seconds")
-                    else:
+                    elif delay_seconds < 3600:
                         st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
+                    else:
+                        st.write(f"**Light pollution delay:** {delay_seconds/3600:.1f} hours")
                                 
                 # Additional information
                 st.subheader("About These Times")
