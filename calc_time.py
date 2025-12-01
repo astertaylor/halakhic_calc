@@ -617,7 +617,7 @@ def main():
         )
         
         # Update coordinates when map is clicked
-        if map_data is not None and map_data.get('last_clicked') is not None:
+        if map_data['last_clicked'] is not None:
             new_lat = map_data['last_clicked']['lat']
             new_lon = map_data['last_clicked']['lng']
             # Normalize longitude to -180 to +180 range
@@ -625,41 +625,39 @@ def main():
             if new_lat != st.session_state.map_lat or normalized_lon != st.session_state.map_lon:
                 st.session_state.map_lat = new_lat
                 st.session_state.map_lon = normalized_lon
-                st.session_state.map_key += 1  # Force map to rebuild
-                st.rerun()  # Re-render immediately to show updated marker and inputs
-        
-        # Callback functions to update session state
-        def update_map_lat():
-            st.session_state.map_lat = st.session_state.manual_lat_input
-        
-        def update_map_lon():
-            normalized_lon = ((st.session_state.manual_lon_input + 180) % 360) - 180
-            st.session_state.map_lon = normalized_lon
+                st.session_state.map_key += 1  # Force map refresh to update marker
+                st.rerun()
         
         # Manual coordinate input for map mode
         col_map1, col_map2 = st.columns(2)
         with col_map1:
-            st.number_input(
+            manual_lat = st.number_input(
                 f"Latitude ({abs(st.session_state.map_lat):.4f}° {'N' if st.session_state.map_lat >= 0 else 'S'})", 
                 min_value=-90.0, 
                 max_value=90.0, 
                 value=st.session_state.map_lat, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lat_input",
-                on_change=update_map_lat
+                key="manual_lat"
             )
         with col_map2:
-            st.number_input(
+            manual_lon = st.number_input(
                 f"Longitude ({abs(st.session_state.map_lon):.4f}° {'E' if st.session_state.map_lon >= 0 else 'W'})", 
                 min_value=-180.0, 
                 max_value=180.0, 
                 value=st.session_state.map_lon, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lon_input",
-                on_change=update_map_lon
+                key="manual_lon"
             )
+        
+        # Update coordinates from manual input
+        if manual_lat != st.session_state.map_lat or manual_lon != st.session_state.map_lon:
+            # Normalize longitude to -180 to +180 range
+            normalized_lon = ((manual_lon + 180) % 360) - 180
+            st.session_state.map_lat = manual_lat
+            st.session_state.map_lon = normalized_lon
+            # st.rerun()
         
         lat = st.session_state.map_lat
         lon = st.session_state.map_lon
@@ -769,11 +767,6 @@ def main():
     if st.button("Calculate Times", type="primary", use_container_width=True):
         with st.spinner("Loading star catalog and calculating times..."):
             try:
-                # Use the correct coordinates based on location method
-                if location_method == "Map Selection":
-                    calc_lat = st.session_state.map_lat
-                    calc_lon = st.session_state.map_lon
-                
                 # Load star catalog
                 medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
                 smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
@@ -783,10 +776,10 @@ def main():
                     return
                 
                 # Get light pollution data
-                light_poll = np.pi*light_pollution(calc_lat, calc_lon)
+                light_poll = np.pi*light_pollution(lat, lon)
                 
                 # Calculate times
-                times = calc_all_times(calc_lat, calc_lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
+                times = calc_all_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
                 
                 # Display results
                 st.header(f"Halakhic Times for {location_name}")
@@ -846,7 +839,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #FFFFFF; font-size: 0.9em; padding: 0 0;'>"
-        "© Copyright 2025 the Author. Testing."
+        "© Copyright 2025 the Author."
         "</div>", 
         unsafe_allow_html=True
     )
