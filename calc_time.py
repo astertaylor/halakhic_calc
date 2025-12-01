@@ -626,7 +626,6 @@ def main():
                 st.session_state.map_lat = new_lat
                 st.session_state.map_lon = normalized_lon
                 st.session_state.map_key += 1  # Force map refresh to update marker
-                st.rerun()
         
         # Callback functions to update session state
         def update_map_lat():
@@ -848,7 +847,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #FFFFFF; font-size: 0.9em; padding: 0 0;'>"
-        "© Copyright 2025 the Author. Testing."
+        "© Copyright 2025 the Author."
         "</div>", 
         unsafe_allow_html=True
     )
