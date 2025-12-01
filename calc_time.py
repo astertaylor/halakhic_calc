@@ -617,7 +617,7 @@ def main():
         )
         
         # Update coordinates when map is clicked
-        if map_data['last_clicked'] is not None:
+        if map_data is not None and map_data.get('last_clicked') is not None:
             new_lat = map_data['last_clicked']['lat']
             new_lon = map_data['last_clicked']['lng']
             # Normalize longitude to -180 to +180 range
@@ -625,17 +625,15 @@ def main():
             if new_lat != st.session_state.map_lat or normalized_lon != st.session_state.map_lon:
                 st.session_state.map_lat = new_lat
                 st.session_state.map_lon = normalized_lon
-                st.session_state.map_key += 1  # Force map refresh to update marker
+                st.session_state.map_key += 1  # Force map to rebuild
         
         # Callback functions to update session state
         def update_map_lat():
             st.session_state.map_lat = st.session_state.manual_lat_input
-            st.session_state.map_key += 1
         
         def update_map_lon():
             normalized_lon = ((st.session_state.manual_lon_input + 180) % 360) - 180
             st.session_state.map_lon = normalized_lon
-            st.session_state.map_key += 1
         
         # Manual coordinate input for map mode
         col_map1, col_map2 = st.columns(2)
