@@ -767,6 +767,10 @@ def main():
     if st.button("Calculate Times", type="primary", use_container_width=True):
         with st.spinner("Loading star catalog and calculating times..."):
             try:
+                if location_method == "Map Selection":
+                    lat = st.session_state.map_lat
+                    lon = st.session_state.map_lon
+                    
                 # Load star catalog
                 medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
                 smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
