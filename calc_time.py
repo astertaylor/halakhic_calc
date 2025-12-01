@@ -293,19 +293,20 @@ def nightfall(stars, obs, Blp=0.0, dist=10.0):
     moon = ephem.Moon()
     moon.compute(obs)
     
-    phase = moon.phase / 100.0 # fraction of the moon illuminated
-    alpha = np.arccos(2*phase - 1)*180/np.pi # phase angle in degrees
-    mmoon = 0.026*alpha + 4e-9*alpha**4 - 12.73 # apparent magnitude of the moon
-    Imoonstar = 10**(-0.4*(mmoon + 13.99)) # in lux
-    Imoon = Imoonstar * 10**(-0.4*kV(obs.elev) * airmass(np.pi/2 - moon.alt, obs.elev)) # in lux
-    # offset angles between the moon and each star
-    dists = np.array([ephem.separation(moon, star)*180/np.pi for star in stars])[above_horizon] # in degrees
-    Bvals += 3.183e-6*4.63e7*Imoon/10.76 * dists**-2 # in cd/m^2, add in the moon glare in the eye
+    if moon.alt > 0:
+        phase = moon.phase / 100.0 # fraction of the moon illuminated
+        alpha = np.arccos(2*phase - 1)*180/np.pi # phase angle in degrees
+        mmoon = 0.026*alpha + 4e-9*alpha**4 - 12.73 # apparent magnitude of the moon
+        Imoonstar = 10**(-0.4*(mmoon + 13.99)) # in lux
+        Imoon = Imoonstar * 10**(-0.4*kV(obs.elev) * airmass(np.pi/2 - moon.alt, obs.elev)) # in lux
+        # offset angles between the moon and each star
+        dists = np.array([ephem.separation(moon, star)*180/np.pi for star in stars])[above_horizon] # in degrees
+        Bvals += 3.183e-6*4.63e7*Imoon/10.76 * dists**-2 # in cd/m^2, add in the moon glare in the eye
 
-    Bvals += 3.183e-6*6.25e7*Imoonstar/10.76*(10**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev)) - 10**(-0.8*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * np.where(dists <= 5, dists**-2, 0) # in cd/m^2, add in the moon glare in the atmosphere
+        Bvals += 3.183e-6*6.25e7*Imoonstar/10.76*(10**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev)) - 10**(-0.8*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * np.where(dists <= 5, dists**-2, 0) # in cd/m^2, add in the moon glare in the atmosphere
 
-    ffmn = 10.0**5.36 * (1.06 + np.cos(np.radians(dists))**2) + 10.0**(6.15 - dists/40) + 6.2e7*(dists**-2) # moon scattering function
-    Bvals += 3.183e-6*ffmn * (1-10.0**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * Imoon/10.76 # in cd/m^2, add in the moon glow scattered in the atmosphere
+        ffmn = 10.0**5.36 * (1.06 + np.cos(np.radians(dists))**2) + 10.0**(6.15 - dists/40) + 6.2e7*(dists**-2) # moon scattering function
+        Bvals += 3.183e-6*ffmn * (1-10.0**(-0.4*kV(obs.elev)*airmass(np.pi/2-alts, obs.elev))) * Imoon/10.76 # in cd/m^2, add in the moon glow scattered in the atmosphere
 
     Ivals = bright_limit(Bvals) # calculate the minimum brightness
     Ivals *= 10**(0.4*kV(obs.elev) * airmass(np.pi/2-alts, obs.elev)) # correct for attenuation
@@ -336,8 +337,9 @@ def halakhic_time(obs, stars, Blp=0.0, dist=10.0):
     """
     # Start with the observer's local sunset time
     start_time = obs.next_setting(ephem.Sun())
+    obs.date = start_time
 
-    end_time = start_time + ephem.minute*250
+    end_time = obs.next_rising(ephem.Sun()) # stop at the next sunrise!
 
     while True:
         obs.date = start_time + ephem.minute*10 # increment by 10 minutes
@@ -345,10 +347,10 @@ def halakhic_time(obs, stars, Blp=0.0, dist=10.0):
             end_time = obs.date
             break
         else:
-            start_time += ephem.minute*10 # otherwise, increment the start time
+            start_time = obs.date # otherwise, increment the start time
         if start_time > end_time:
-            print("WARNING: nightfall has not happened within 250 minutes after sunset!")
-            return obs.date
+            print("WARNING: nightfall has not happened by the next dawn!")
+            return end_time
 
     obs.date = end_time
     if not nightfall(stars, obs, Blp):
@@ -792,8 +794,8 @@ def main():
                 with col1:
                     st.write(f"**Sunset:** {times['sunset'].strftime('%H:%M:%S')}")
                     st.write(f"**6.45° (T'H approximation):** {times['TH_approx'].strftime('%H:%M:%S')}")
-                    st.write(f"**Tzeit HaKochavim:** {times['TH'].strftime('%H:%M:%S')}")
-                    st.write(f"**Tzeit HaKochavim w/ light pollution:** {times['TH_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Ts'eit HaKokhavim:** {times['TH'].strftime('%H:%M:%S')}")
+                    st.write(f"**Ts'eit HaKokhavim w/ light pollution:** {times['TH_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['TH_lp'] - times['TH']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
@@ -806,8 +808,8 @@ def main():
                 with col2:
                     st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**8.5° (M'S approximation):** {times['MS_approx'].strftime('%H:%M:%S')}")
-                    st.write(f"**Motzei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
-                    st.write(f"**Motzei Shabbat w/ light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motza'ei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motza'ei Shabbat w/ light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['MS_lp'] - times['MS']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
@@ -821,11 +823,11 @@ def main():
                 st.subheader("About These Times")
                 st.write("""
                 - **Sunset**: When the sun's disk disappears below the horizon. This value uses the US Naval Observatory's definition, which includes atmospheric refraction and the sun's radius.
-                - **6.45° (T'H approximation)**: An approximation of Tzeit HaKochavim, based on the sun being 6.45° below the horizon.
-                - **Tzeit HaKochavim**: The time when three medium stars become visible. 
-                - **8.5° (M'S approximation)**: An approximation of Motzei Shabbat, based on the sun being 8.5° below the horizon.
-                - **Motzei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
-                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset. This is an approximation of nightfall.
+                - **6.45° (T'H approximation)**: An approximation of Ts'eit HaKokhavim, based on the sun being 6.45° below the horizon.
+                - **Ts'eit HaKokhavim**: The time when three medium stars become visible. 
+                - **8.5° (M'S approximation)**: An approximation of Motza'ei Shabbat, based on the sun being 8.5° below the horizon.
+                - **Motza'ei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
+                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset.
                 - **Light pollution delay**: How much light pollution delays the appearance of stars.
                 """)
                 
