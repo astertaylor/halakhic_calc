@@ -845,7 +845,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #FFFFFF; font-size: 0.9em; padding: 0 0;'>"
-        "© Copyright 2025 the Author."
+        "© Copyright 2025 the Author. Testing."
         "</div>", 
         unsafe_allow_html=True
     )
