@@ -657,7 +657,8 @@ def main():
             normalized_lon = ((manual_lon + 180) % 360) - 180
             st.session_state.map_lat = manual_lat
             st.session_state.map_lon = normalized_lon
-            # st.rerun()
+            st.session_state.map_key += 1  # Force map refresh to update marker
+            st.rerun()
         
         lat = st.session_state.map_lat
         lon = st.session_state.map_lon
@@ -767,10 +768,11 @@ def main():
     if st.button("Calculate Times", type="primary", use_container_width=True):
         with st.spinner("Loading star catalog and calculating times..."):
             try:
+                # Use the correct coordinates based on location method
                 if location_method == "Map Selection":
-                    lat = st.session_state.map_lat
-                    lon = st.session_state.map_lon
-                    
+                    calc_lat = st.session_state.map_lat
+                    calc_lon = st.session_state.map_lon
+                
                 # Load star catalog
                 medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
                 smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
@@ -780,10 +782,10 @@ def main():
                     return
                 
                 # Get light pollution data
-                light_poll = np.pi*light_pollution(lat, lon)
+                light_poll = np.pi*light_pollution(calc_lat, calc_lon)
                 
                 # Calculate times
-                times = calc_all_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
+                times = calc_all_times(calc_lat, calc_lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
                 
                 # Display results
                 st.header(f"Halakhic Times for {location_name}")
