@@ -349,12 +349,12 @@ def halakhic_time(obs, stars, Blp=0.0, dist=10.0):
         else:
             start_time = obs.date # otherwise, increment the start time
         if start_time > end_time:
-            print("WARNING: nightfall has not happened by the next dawn!")
+            # print("WARNING: nightfall has not happened by the next dawn!")
             return end_time
 
     obs.date = end_time
     if not nightfall(stars, obs, Blp):
-        print("WARNING: nightfall has not happened at the end!")
+        # print("WARNING: nightfall has not happened at the end!")
         return obs.date
     else:
         # perform a binary search
