@@ -657,7 +657,7 @@ def main():
             normalized_lon = ((manual_lon + 180) % 360) - 180
             st.session_state.map_lat = manual_lat
             st.session_state.map_lon = normalized_lon
-            st.rerun()
+            # st.rerun()
         
         lat = st.session_state.map_lat
         lon = st.session_state.map_lon
