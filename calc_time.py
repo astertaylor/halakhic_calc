@@ -561,12 +561,12 @@ def main():
     """, unsafe_allow_html=True)
     
     # Header link
-    st.markdown(
-        "<div class='header-link'>"
-        "<a href='https://www.astertaylor.com' target='_blank'>Home</a>"
-        "</div>",
-        unsafe_allow_html=True
-    )
+    # st.markdown(
+    #     "<div class='header-link'>"
+    #     "<a href='https://www.astertaylor.com' target='_blank'>Home</a>"
+    #     "</div>",
+    #     unsafe_allow_html=True
+    # )
     
     st.title("Halakhic Time Calculator")
 
