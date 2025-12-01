@@ -638,7 +638,7 @@ def main():
                 value=st.session_state.map_lat, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lat"
+                key=f"manual_lat_{st.session_state.map_key}"
             )
         with col_map2:
             manual_lon = st.number_input(
@@ -648,7 +648,7 @@ def main():
                 value=st.session_state.map_lon, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lon"
+                key=f"manual_lon_{st.session_state.map_key}"
             )
         
         # Update coordinates from manual input
