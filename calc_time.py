@@ -588,8 +588,10 @@ def main():
             st.session_state.map_lat = 31.7769  # Default to Jerusalem
         if 'map_lon' not in st.session_state:
             st.session_state.map_lon = 35.2345
+        if 'map_key' not in st.session_state:
+            st.session_state.map_key = 0
         
-        # Display the map and capture click events
+        # Create a Folium map
         m = folium.Map(
             location=[st.session_state.map_lat, st.session_state.map_lon],
             zoom_start=6,
@@ -601,20 +603,21 @@ def main():
         folium.Marker(
             [st.session_state.map_lat, st.session_state.map_lon],
             popup=f"Selected Location\n({st.session_state.map_lat:.4f}, {st.session_state.map_lon:.4f})",
-            tooltip="Click to select location",
+            tooltip="Click to confirm location",
             icon=folium.Icon(color='red', icon='star')
         ).add_to(m)
         
+        # Display the map and capture click events
         map_data = st_folium(
             m,
             width=700,
             height=400,
             returned_objects=["last_clicked"],
-            key="map_interaction"
+            key=f"map_{st.session_state.map_key}"
         )
         
-        # Update coordinates when map is clicked and trigger rerun to update map
-        if map_data is not None and map_data.get('last_clicked') is not None:
+        # Update coordinates when map is clicked
+        if map_data['last_clicked'] is not None:
             new_lat = map_data['last_clicked']['lat']
             new_lon = map_data['last_clicked']['lng']
             # Normalize longitude to -180 to +180 range
@@ -622,6 +625,7 @@ def main():
             if new_lat != st.session_state.map_lat or normalized_lon != st.session_state.map_lon:
                 st.session_state.map_lat = new_lat
                 st.session_state.map_lon = normalized_lon
+                st.session_state.map_key += 1  # Force map refresh to update marker
                 st.rerun()
         
         # Manual coordinate input for map mode
@@ -653,17 +657,16 @@ def main():
             normalized_lon = ((manual_lon + 180) % 360) - 180
             st.session_state.map_lat = manual_lat
             st.session_state.map_lon = normalized_lon
+            st.rerun()
         
         lat = st.session_state.map_lat
         lon = st.session_state.map_lon
         location_name = f"{abs(lat):.4f}° {'N' if lat >= 0 else 'S'} {abs(lon):.4f}° {'E' if lon >= 0 else 'W'}"
         
-        # Get elevation for current coordinates (with caching to avoid repeated API calls)
-        current_coords = (lat, lon)
-        if 'map_elevation' not in st.session_state or st.session_state.get('last_map_coords') != current_coords:
-            with st.spinner("Fetching elevation data..."):
-                st.session_state.map_elevation = max(0.0, get_elevation(lat, lon))
-            st.session_state.last_map_coords = current_coords
+        # Get elevation for current coordinates
+        if 'map_elevation' not in st.session_state or st.session_state.get('last_coords') != (lat, lon):
+            st.session_state.map_elevation = max(0.0, get_elevation(lat, lon))
+            st.session_state.last_coords = (lat, lon)
         
         # Show selected coordinates
         # st.info(f"Selected coordinates: {lat:.4f}, {lon:.4f}")
