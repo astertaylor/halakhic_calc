@@ -628,37 +628,40 @@ def main():
                 st.session_state.map_key += 1  # Force map refresh to update marker
                 st.rerun()
         
+        # Callback functions to update session state
+        def update_map_lat():
+            st.session_state.map_lat = st.session_state.manual_lat_input
+            st.session_state.map_key += 1
+        
+        def update_map_lon():
+            normalized_lon = ((st.session_state.manual_lon_input + 180) % 360) - 180
+            st.session_state.map_lon = normalized_lon
+            st.session_state.map_key += 1
+        
         # Manual coordinate input for map mode
         col_map1, col_map2 = st.columns(2)
         with col_map1:
-            manual_lat = st.number_input(
+            st.number_input(
                 f"Latitude ({abs(st.session_state.map_lat):.4f}° {'N' if st.session_state.map_lat >= 0 else 'S'})", 
                 min_value=-90.0, 
                 max_value=90.0, 
                 value=st.session_state.map_lat, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lat"
+                key="manual_lat_input",
+                on_change=update_map_lat
             )
         with col_map2:
-            manual_lon = st.number_input(
+            st.number_input(
                 f"Longitude ({abs(st.session_state.map_lon):.4f}° {'E' if st.session_state.map_lon >= 0 else 'W'})", 
                 min_value=-180.0, 
                 max_value=180.0, 
                 value=st.session_state.map_lon, 
                 step=1.0, 
                 format="%.4f",
-                key="manual_lon"
+                key="manual_lon_input",
+                on_change=update_map_lon
             )
-        
-        # Update coordinates from manual input
-        if manual_lat != st.session_state.map_lat or manual_lon != st.session_state.map_lon:
-            # Normalize longitude to -180 to +180 range
-            normalized_lon = ((manual_lon + 180) % 360) - 180
-            st.session_state.map_lat = manual_lat
-            st.session_state.map_lon = normalized_lon
-            st.session_state.map_key += 1  # Force map refresh to update marker
-            st.rerun()
         
         lat = st.session_state.map_lat
         lon = st.session_state.map_lon
@@ -845,7 +848,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #FFFFFF; font-size: 0.9em; padding: 0 0;'>"
-        "© Copyright 2025 the Author."
+        "© Copyright 2025 the Author. Testing."
         "</div>", 
         unsafe_allow_html=True
     )
