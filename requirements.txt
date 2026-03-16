@@ -8,3 +8,4 @@ pandas
 folium
 streamlit_folium
 requests
+altair
