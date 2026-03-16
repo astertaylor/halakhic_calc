@@ -9,3 +9,4 @@ folium
 streamlit_folium
 requests
 altair<5
+imghdr
