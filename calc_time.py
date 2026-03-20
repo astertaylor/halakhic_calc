@@ -808,8 +808,8 @@ def main():
                 with col2:
                     st.write(f"**Rabbeinu Tam (72 min):** {times['Tam_approx'].strftime('%H:%M:%S')}")
                     st.write(f"**8.5° (M'S approximation):** {times['MS_approx'].strftime('%H:%M:%S')}")
-                    st.write(f"**Motza'ei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
-                    st.write(f"**Motza'ei Shabbat w/ light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motsa'ei Shabbat:** {times['MS'].strftime('%H:%M:%S')}")
+                    st.write(f"**Motsa'ei Shabbat w/ light pollution:** {times['MS_lp'].strftime('%H:%M:%S')}")
                     time_diff = times['MS_lp'] - times['MS']
                     delay_seconds = time_diff.total_seconds()
                     if delay_seconds < 60:
@@ -825,8 +825,8 @@ def main():
                 - **Sunset**: When the sun's disk disappears below the horizon. This value uses the US Naval Observatory's definition, which includes atmospheric refraction and the sun's radius.
                 - **6.45° (T'H approximation)**: An approximation of Ts'eit HaKokhavim, based on the sun being 6.45° below the horizon.
                 - **Ts'eit HaKokhavim**: The time when three medium stars become visible. 
-                - **8.5° (M'S approximation)**: An approximation of Motza'ei Shabbat, based on the sun being 8.5° below the horizon.
-                - **Motza'ei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
+                - **8.5° (M'S approximation)**: An approximation of Motsa'ei Shabbat, based on the sun being 8.5° below the horizon.
+                - **Motsa'ei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
                 - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset.
                 - **Light pollution delay**: How much light pollution delays the appearance of stars.
                 """)
