@@ -2,10 +2,11 @@ rasterio
 ephem
 pytz
 timezonefinder
-datetime
 scipy
 pandas
-folium
-streamlit_folium
 requests
-altair<5
+
+altair==4.2.2
+streamlit==1.41.1
+streamlit-folium==0.24.0
+folium==0.20.0
