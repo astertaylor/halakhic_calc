@@ -3,13 +3,35 @@ import numpy as np
 import rasterio
 import ephem
 import pytz
+import calendar
 from timezonefinder import TimezoneFinder
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from scipy.interpolate import RegularGridInterpolator
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
 import requests
+
+MONTH_NAMES = list(calendar.month_name)[1:]  # January..December
+
+def get_saturdays_in_range(start_date, end_date):
+    """
+    Find all Saturdays (inclusive) between start_date and end_date.
+
+    Args:
+        start_date: date object, start of the range
+        end_date: date object, end of the range
+    Returns:
+        list: date objects for each Saturday in the range
+    """
+    days_ahead = (5 - start_date.weekday()) % 7  # Saturday == 5 (Monday == 0)
+    current = start_date + timedelta(days=days_ahead)
+
+    saturdays = []
+    while current <= end_date:
+        saturdays.append(current)
+        current += timedelta(days=7)
+    return saturdays
 
 def get_elevation(lat, lon):
     url = f"https://api.opentopodata.org/v1/mapzen?locations={lat},{lon}&interpolation=cubic"
@@ -396,6 +418,9 @@ def calc_all_times(lat, lon, time, medstars, smallstars, Blp=0.0, elev=None):
     """
     Calculate all relevant times for a given observer and set of stars.
 
+    Both Ts'eit HaKokhavim and Motsa'ei Shabbat (and their approximations) are
+    calculated for the evening of the given date.
+
     Args:
         lat: Latitude of the observer
         lon: Longitude of the observer
@@ -434,7 +459,7 @@ def calc_all_times(lat, lon, time, medstars, smallstars, Blp=0.0, elev=None):
     times['sunset'] = utc_to_local(sunset, tz)  # Sunset time
     # Calculate approximate times for Rabbeinu Tam, Con, and Orth
     times['Tam_approx'] = utc_to_local(ephem.Date(sunset + ephem.minute * 72), tz)  # Rabbeinu Tam's approximation (72 minutes after sunset)
-    
+
     obs.date = date
     times['TH_lp'] = utc_to_local(halakhic_time(obs, medstars, Blp=Blp, dist=None), tz)
 
@@ -445,6 +470,76 @@ def calc_all_times(lat, lon, time, medstars, smallstars, Blp=0.0, elev=None):
     times['TH_approx'] = utc_to_local(sun_at_position(obs, -6.45*np.pi/180), tz)  # Approximate time when the Sun is at -6.45 degrees altitude
 
     obs.date = date
+    times['MS_approx'] = utc_to_local(sun_at_position(obs, -8.5*np.pi/180), tz)  # Approximate time when the Sun is at -8.5 degrees altitude
+
+    return times
+
+def calc_shabbat_times(lat, lon, saturday, medstars, smallstars, Blp=0.0, elev=None):
+    """
+    Calculate all relevant times for a given Shabbat, splitting Ts'eit HaKokhavim
+    (and its approximations) onto the Friday evening before `saturday`, since it
+    marks the start of Shabbat observance, and Motsa'ei Shabbat (and its
+    approximations) onto the Saturday evening of `saturday` itself, since it marks
+    the end of Shabbat.
+
+    Args:
+        lat: Latitude of the observer
+        lon: Longitude of the observer
+        saturday: datetime for the Shabbat (Saturday) in question
+        medstars: List of medium-brightness star objects (for Ts'eit HaKokhavim)
+        smallstars: List of small-brightness star objects (for Motsa'ei Shabbat)
+        Blp: Light pollution value at the observer's location, in cd/m^2
+        elev: Elevation of the observer, in meters
+
+    Returns:
+        dict: A dictionary containing all relevant times
+    """
+    tz = get_timezone_from_coordinates(lat, lon)
+
+    friday = saturday - timedelta(days=1)
+    # assume the times are in local timezone, and convert them to UTC for calculations
+    date_fri = ephem.Date(pytz.timezone(tz).localize(friday).astimezone(pytz.utc))
+    date_sat = ephem.Date(pytz.timezone(tz).localize(saturday).astimezone(pytz.utc))
+
+    if elev is None:
+        elev = max(0.0, get_elevation(lat, lon))
+
+    obs = ephem.Observer()
+    obs.lat = str(lat)
+    obs.lon = str(lon)
+    obs.elev = elev
+
+    times = {}
+    times['timezone'] = tz  # Store timezone name
+
+    # Friday evening: Ts'eit HaKokhavim, marking the start of Shabbat observance
+    obs.date = date_fri
+    times['TH'] = utc_to_local(halakhic_time(obs, medstars, Blp=0.0, dist=None), tz)
+
+    obs.date = date_fri
+    friday_sunset = obs.next_setting(ephem.Sun())  # Friday sunset time in UTC
+    times['friday_sunset'] = utc_to_local(friday_sunset, tz)
+    # Rabbeinu Tam's approximation (72 minutes after Friday sunset)
+    times['Tam_approx'] = utc_to_local(ephem.Date(friday_sunset + ephem.minute * 72), tz)
+
+    obs.date = date_fri
+    times['TH_lp'] = utc_to_local(halakhic_time(obs, medstars, Blp=Blp, dist=None), tz)
+
+    obs.date = date_fri
+    times['TH_approx'] = utc_to_local(sun_at_position(obs, -6.45*np.pi/180), tz)  # Approximate time when the Sun is at -6.45 degrees altitude
+
+    # Saturday evening: Motsa'ei Shabbat, marking the end of Shabbat
+    obs.date = date_sat
+    times['MS'] = utc_to_local(halakhic_time(obs, smallstars, Blp=0.0, dist=10.0), tz)
+
+    obs.date = date_sat
+    sunset = obs.next_setting(ephem.Sun())  # Saturday sunset time in UTC
+    times['sunset'] = utc_to_local(sunset, tz)  # Sunset time
+
+    obs.date = date_sat
+    times['MS_lp'] = utc_to_local(halakhic_time(obs, smallstars, Blp=Blp, dist=10.0), tz)
+
+    obs.date = date_sat
     times['MS_approx'] = utc_to_local(sun_at_position(obs, -8.5*np.pi/180), tz)  # Approximate time when the Sun is at -8.5 degrees altitude
 
     return times
@@ -756,41 +851,54 @@ def main():
             help="Elevation is automatically detected but can be manually adjusted"
         )
     with col4:
-        selected_date = st.date_input("Select date", value=datetime.now().date())
-    
-    # Convert to datetime for calculations
-    calc_date = datetime.combine(selected_date, datetime.min.time())
-    
+        time_scope = st.radio(
+            "Calculate for:",
+            ["Single Day", "Month", "Year"],
+            horizontal=True
+        )
+        if time_scope == "Single Day":
+            selected_date = st.date_input("Select date", value=datetime.now().date())
+        elif time_scope == "Month":
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                selected_year = st.number_input("Year", min_value=1900, max_value=2100, value=datetime.now().year, step=1)
+            with col_m2:
+                selected_month_name = st.selectbox("Month", MONTH_NAMES, index=datetime.now().month - 1)
+                selected_month = MONTH_NAMES.index(selected_month_name) + 1
+        else:  # Year
+            selected_year = st.number_input("Year", min_value=1900, max_value=2100, value=datetime.now().year, step=1)
+
     st.divider()
-    
+
     # Calculate button
     if st.button("Calculate Times", type="primary", use_container_width=True):
-        with st.spinner("Loading star catalog and calculating times..."):
-            try:
-                # Load star catalog
-                medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
-                smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
-                
-                if not medstars or not smallstars:
-                    st.error("Could not load star catalog. Please check if the catalog file exists.")
-                    return
-                
-                # Get light pollution data
-                light_poll = np.pi*light_pollution(lat, lon)
-                
-                # Calculate times
-                times = calc_all_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
-                
+        try:
+            # Load star catalog
+            medstars = read_star_catalog(mag_limit_l=2.0, mag_limit_u=3.0)
+            smallstars = read_star_catalog(mag_limit_l=3.0, mag_limit_u=4.0)
+
+            if not medstars or not smallstars:
+                st.error("Could not load star catalog. Please check if the catalog file exists.")
+                return
+
+            # Get light pollution data
+            light_poll = np.pi*light_pollution(lat, lon)
+
+            if time_scope == "Single Day":
+                with st.spinner("Calculating times..."):
+                    calc_date = datetime.combine(selected_date, datetime.min.time())
+                    times = calc_all_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
+
                 # Display results
                 st.header(f"Halakhic Times for {location_name}")
                 st.subheader(f"Date: {selected_date.strftime('%B %d, %Y')}")
                 st.write(f"**Timezone:** {times['timezone']}")
                 st.write(f"**Light Pollution:** {light_poll*1e3:.2f} mcd/m²")
-                
+
                 st.subheader("Times")
                 # Create columns for better layout
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
                     st.write(f"**Sunset:** {times['sunset'].strftime('%H:%M:%S')}")
                     st.write(f"**6.45° (T'H approximation):** {times['TH_approx'].strftime('%H:%M:%S')}")
@@ -818,22 +926,81 @@ def main():
                         st.write(f"**Light pollution delay:** {delay_seconds/60:.1f} minutes")
                     else:
                         st.write(f"**Light pollution delay:** {delay_seconds/3600:.1f} hours")
-                                
+
                 # Additional information
                 st.subheader("About These Times")
                 st.write("""
                 - **Sunset**: When the sun's disk disappears below the horizon. This value uses the US Naval Observatory's definition, which includes atmospheric refraction and the sun's radius.
-                - **6.45° (T'H approximation)**: An approximation of Ts'eit HaKokhavim, based on the sun being 6.45° below the horizon.
-                - **Ts'eit HaKokhavim**: The time when three medium stars become visible. 
-                - **8.5° (M'S approximation)**: An approximation of Motsa'ei Shabbat, based on the sun being 8.5° below the horizon.
-                - **Motsa'ei Shabbat**: The time when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart. 
-                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after sunset.
+                - **6.45° (T'H approximation)**: An approximation of Ts'eit HaKokhavim, based on the sun being 6.45° below the horizon, on Friday evening.
+                - **Ts'eit HaKokhavim**: The time on Friday evening when three medium stars become visible, marking the start of Shabbat observance.
+                - **8.5° (M'S approximation)**: An approximation of Motsa'ei Shabbat, based on the sun being 8.5° below the horizon, on Saturday night.
+                - **Motsa'ei Shabbat**: The time on Saturday night when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart, marking the end of Shabbat.
+                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after Friday sunset.
                 - **Light pollution delay**: How much light pollution delays the appearance of stars.
                 """)
-                
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-                st.write("Please check your inputs and try again.")
+
+            else:
+                # Month or Year: calculate for every Shabbat in the range
+                if time_scope == "Month":
+                    start_date = date(selected_year, selected_month, 1)
+                    last_day = calendar.monthrange(selected_year, selected_month)[1]
+                    end_date = date(selected_year, selected_month, last_day)
+                    range_label = f"{MONTH_NAMES[selected_month - 1]} {selected_year}"
+                else:
+                    start_date = date(selected_year, 1, 1)
+                    end_date = date(selected_year, 12, 31)
+                    range_label = f"{selected_year}"
+
+                saturdays = get_saturdays_in_range(start_date, end_date)
+
+                st.header(f"Halakhic Times for {location_name}")
+                st.subheader(f"Shabbatot in {range_label}")
+                st.write(f"**Light Pollution:** {light_poll*1e3:.2f} mcd/m²")
+
+                rows = []
+                progress_bar = st.progress(0.0, text="Calculating times for each Shabbat...")
+                for i, sat in enumerate(saturdays):
+                    calc_date = datetime.combine(sat, datetime.min.time())
+                    times = calc_shabbat_times(lat, lon, calc_date, medstars, smallstars, Blp=light_poll, elev=elev)
+                    fri = sat - timedelta(days=1)
+                    rows.append({
+                        "Erev Shabbat (Fri)": fri.strftime("%Y-%m-%d"),
+                        "Fri Sunset": times['friday_sunset'].strftime("%H:%M:%S"),
+                        "T'H (6.45° approx.)": times['TH_approx'].strftime("%H:%M:%S"),
+                        "Ts'eit HaKokhavim": times['TH'].strftime("%H:%M:%S"),
+                        "Ts'eit HaKokhavim (w/ LP)": times['TH_lp'].strftime("%H:%M:%S"),
+                        "Rabbeinu Tam (72 min)": times['Tam_approx'].strftime("%H:%M:%S"),
+                        "Shabbat (Sat)": sat.strftime("%Y-%m-%d"),
+                        "Sat Sunset": times['sunset'].strftime("%H:%M:%S"),
+                        "M'S (8.5° approx.)": times['MS_approx'].strftime("%H:%M:%S"),
+                        "Motsa'ei Shabbat": times['MS'].strftime("%H:%M:%S"),
+                        "Motsa'ei Shabbat (w/ LP)": times['MS_lp'].strftime("%H:%M:%S"),
+                        "Timezone": times['timezone'],
+                    })
+                    progress_bar.progress(
+                        (i + 1) / len(saturdays),
+                        text=f"Calculating times for each Shabbat... ({i + 1}/{len(saturdays)})"
+                    )
+                progress_bar.empty()
+
+                df = pd.DataFrame(rows)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+
+                # Additional information
+                st.subheader("About These Times")
+                st.write("""
+                - **Sunset**: When the sun's disk disappears below the horizon. This value uses the US Naval Observatory's definition, which includes atmospheric refraction and the sun's radius.
+                - **T'H (6.45° approx.)**: An approximation of Ts'eit HaKokhavim on Friday evening, based on the sun being 6.45° below the horizon.
+                - **Ts'eit HaKokhavim**: The time on Friday evening when three medium stars become visible, marking the start of Shabbat observance.
+                - **Rabbeinu Tam**: Traditional fixed time of 72 minutes after Friday sunset.
+                - **M'S (8.5° approx.)**: An approximation of Motsa'ei Shabbat on Saturday night, based on the sun being 8.5° below the horizon.
+                - **Motsa'ei Shabbat**: The time on Saturday night when three small stars become visible "in one place" in the sky, meaning the stars are less than 10° apart, marking the end of Shabbat.
+                - **(w/ LP)**: Values adjusted for light pollution at the selected location.
+                """)
+
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            st.write("Please check your inputs and try again.")
     
     # Footer
     st.markdown("---")
